@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files (secrets)
+.env
+server/.env
+client/.env
+
+# Production build outputs
+dist/
+client/dist/
+
+# Database files
+db_*.json
+server/db_*.json
+dns_test.js
+check_products.js
+
+# System/IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
