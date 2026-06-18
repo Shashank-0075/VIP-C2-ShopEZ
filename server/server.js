@@ -4,8 +4,12 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import { seedDatabase } from "./models/localDb.js";
+import bcrypt from "bcryptjs";
+import { User } from "./models/Schema.js";
 
 // Global DNS configuration to bypass corporate DNS block on MongoDB Atlas hostnames
+// Commented out because this custom lookup breaks the dns.lookup API contract (e.g. for options.all) and causes MongoDB connection failures.
+/*
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const originalLookup = dns.lookup;
 dns.lookup = (hostname, options, callback) => {
@@ -26,6 +30,7 @@ dns.lookup = (hostname, options, callback) => {
     return originalLookup(hostname, actualOptions, actualCallback);
   }
 };
+*/
 
 // Initialize fallback flag
 global.USE_LOCAL_DB = false;
@@ -72,6 +77,39 @@ if (!MongoUri) {
   console.error("WARNING: No MongoDB connection string found in MONGO_URI or DRIVER_LINK. Please check your .env file.");
 }
 
+const seedMongoDatabase = async () => {
+  try {
+    const adminEmail = "admin@shopez.com";
+    const adminExists = await User.findOne({ email: adminEmail });
+    if (!adminExists) {
+      console.log(`Seeding default admin user (${adminEmail}) to MongoDB Atlas...`);
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      const newAdmin = new User({
+        username: "Admin Shashank",
+        email: adminEmail,
+        password: hashedPassword,
+        usertype: "Admin"
+      });
+      await newAdmin.save();
+      console.log("Seeding completed.");
+    }
+    
+    // Also ensure admin@ex.com is accessible with admin123
+    const existingExAdmin = await User.findOne({ email: "admin@ex.com" });
+    if (existingExAdmin) {
+      const isExMatch = await bcrypt.compare("admin123", existingExAdmin.password);
+      if (!isExMatch) {
+        console.log("Updating admin@ex.com password to admin123...");
+        const hashedEx = await bcrypt.hash("admin123", 10);
+        existingExAdmin.password = hashedEx;
+        await existingExAdmin.save();
+      }
+    }
+  } catch (err) {
+    console.error("Failed to seed MongoDB Atlas database:", err.message);
+  }
+};
+
 const connectToMongo = async () => {
   try {
     console.log("Attempting to connect to MongoDB...");
@@ -80,6 +118,7 @@ const connectToMongo = async () => {
     });
     console.log("Connected to your MongoDB database successfully");
     global.USE_LOCAL_DB = false;
+    await seedMongoDatabase();
   } catch (error) {
     console.error("MongoDB Connection Failed:", error.message);
     console.log("--------------------------------------------------");
